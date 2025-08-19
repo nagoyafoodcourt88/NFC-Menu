@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "@supabase/supabase-js": "^2.55.0"
+  },
+  "devDependencies": {
+    "@netlify/plugin-nextjs": "^5.12.0"
+  }
+}
