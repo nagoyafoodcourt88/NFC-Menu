@@ -1,12 +1,28 @@
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
-import TenantSearch, { Tenant } from "@/components/TenantSearch";
+import TenantSearch, { Tenant, Item } from "@/components/TenantSearch";
 
-export const revalidate = 60; // ISR: refresh data every 60s
+export const revalidate = 60; // ISR
+
+type TenantRow = {
+  id: string;
+  name: string;
+  slug: string;
+  thumb_url: string | null;
+  order_index: number | null;
+  is_active: boolean;
+  items: Array<{
+    id: string;
+    name_id: string;
+    name_en: string;
+    price: number;
+    image_url: string | null;
+    is_active: boolean;
+  }> | null;
+};
 
 export default async function Makanan() {
-  // Fetch tenants + active items for initial render
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("tenants")
     .select(`
       id, name, slug, thumb_url, order_index, is_active,
@@ -15,16 +31,26 @@ export default async function Makanan() {
     .eq("is_active", true)
     .order("order_index", { ascending: true });
 
-  // Ensure only active items are kept
-  const tenants: Tenant[] =
-    (data ?? []).map((t: any) => ({
-      id: t.id,
-      name: t.name,
-      slug: t.slug,
-      thumb_url: t.thumb_url,
-      order_index: t.order_index,
-      items: (t.items ?? []).filter((it: any) => it.is_active),
-    }));
+  if (error) {
+    console.error(error);
+  }
+
+  const tenants: Tenant[] = (data as TenantRow[] | null)?.map((t) => ({
+    id: t.id,
+    name: t.name,
+    slug: t.slug,
+    thumb_url: t.thumb_url,
+    order_index: t.order_index ?? 0,
+    items: (t.items ?? [])
+      .filter((it) => it.is_active)
+      .map<Item>((it) => ({
+        id: it.id,
+        name_id: it.name_id,
+        name_en: it.name_en,
+        price: it.price,
+        image_url: it.image_url,
+      })),
+  })) ?? [];
 
   return (
     <main className="min-h-screen bg-white text-slate-900">
