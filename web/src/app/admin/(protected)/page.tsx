@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabaseClient";
 import { slugify } from "@/utils/slugify";
 
@@ -10,21 +9,24 @@ type Tenant = { id: string; name: string; slug: string };
 
 function rpToInt(s: string) {
   // accepts "25.000" or "25000" -> 25000
-  return parseInt(s.replace(/\./g, "").replace(/[^\d]/g, "") || "0", 10);
+  const n = parseInt((s ?? "").replace(/\./g, "").replace(/[^\d]/g, ""), 10);
+  return Number.isFinite(n) ? n : 0;
 }
 
 export default function AdminPage() {
   const router = useRouter();
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // preload tenants for item form
   useEffect(() => {
     (async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("tenants")
         .select("id,name,slug")
         .order("name");
-      setTenants(data as Tenant[] || []);
+      if (error) setLoadError(error.message);
+      setTenants((data as Tenant[]) || []);
     })();
   }, []);
 
@@ -43,28 +45,48 @@ export default function AdminPage() {
   async function handleAddTenant(e: React.FormEvent) {
     e.preventDefault();
     setTStatus("Saving…");
-    const slug = slugify(tName);
+    const slug = slugify(tName.trim());
     let thumbUrl: string | null = null;
 
     if (tThumb) {
       const path = `tenants/${slug}-${Date.now()}-${tThumb.name}`;
       const { error: upErr } = await supabase.storage
-        .from("menu-images").upload(path, tThumb, { upsert: true });
-      if (upErr) { setTStatus(upErr.message); return; }
+        .from("menu-images")
+        .upload(path, tThumb, { upsert: true });
+      if (upErr) {
+        setTStatus(upErr.message);
+        return;
+      }
       const { data: pub } = supabase.storage.from("menu-images").getPublicUrl(path);
       thumbUrl = pub.publicUrl;
     }
 
-    const { error } = await supabase.from("tenants").insert([{
-      name: tName, slug, thumb_url: thumbUrl, order_index: tOrder, is_active: tActive
-    }]);
-    if (error) { setTStatus(error.message); return; }
+    const { error } = await supabase.from("tenants").insert([
+      {
+        name: tName,
+        slug,
+        thumb_url: thumbUrl,
+        order_index: tOrder,
+        is_active: tActive,
+      },
+    ]);
+    if (error) {
+      setTStatus(error.message);
+      return;
+    }
 
     setTStatus("Tenant added ✓");
-    setTName(""); setTThumb(null); setTOrder(0); setTActive(true);
+    setTName("");
+    setTThumb(null);
+    setTOrder(0);
+    setTActive(true);
+
     // refresh list for item form
-    const { data } = await supabase.from("tenants").select("id,name,slug").order("name");
-    setTenants(data as Tenant[] || []);
+    const { data } = await supabase
+      .from("tenants")
+      .select("id,name,slug")
+      .order("name");
+    setTenants((data as Tenant[]) || []);
   }
 
   // -------- Add Item --------
@@ -86,97 +108,180 @@ export default function AdminPage() {
       const safeName = slugify(iNameID || "menu");
       const path = `items/${safeName}-${Date.now()}-${iImage.name}`;
       const { error: upErr } = await supabase.storage
-        .from("menu-images").upload(path, iImage, { upsert: true });
-      if (upErr) { setIStatus(upErr.message); return; }
+        .from("menu-images")
+        .upload(path, iImage, { upsert: true });
+      if (upErr) {
+        setIStatus(upErr.message);
+        return;
+      }
       const { data: pub } = supabase.storage.from("menu-images").getPublicUrl(path);
       imageUrl = pub.publicUrl;
     }
 
-    const { error } = await supabase.from("menu_items").insert([{
-      tenant_id: iTenantId,
-      name_id: iNameID,
-      name_en: iNameEN,
-      price: rpToInt(iPrice),
-      description: iDesc || null,
-      image_url: imageUrl,
-      is_active: iActive,
-    }]);
-    if (error) { setIStatus(error.message); return; }
+    const { error } = await supabase.from("menu_items").insert([
+      {
+        tenant_id: iTenantId,
+        name_id: iNameID,
+        name_en: iNameEN,
+        price: rpToInt(iPrice),
+        description: iDesc || null,
+        image_url: imageUrl,
+        is_active: iActive,
+      },
+    ]);
+    if (error) {
+      setIStatus(error.message);
+      return;
+    }
 
     setIStatus("Item added ✓");
-    setITenantId(""); setINameID(""); setINameEN("");
-    setIPrice("0"); setIDesc(""); setIImage(null); setIActive(true);
+    setITenantId("");
+    setINameID("");
+    setINameEN("");
+    setIPrice("0");
+    setIDesc("");
+    setIImage(null);
+    setIActive(true);
   }
 
   return (
-    <AdminGuard>
-      <main className="min-h-screen bg-white text-slate-900">
-        <div className="mx-auto max-w-md p-4">
-          <header className="flex items-center justify-between border-b pb-3">
-            <h1 className="font-extrabold text-2xl">Admin</h1>
-            <button onClick={logout} className="text-sm underline">Sign out</button>
-          </header>
+    <main className="min-h-screen bg-white text-slate-900">
+      <div className="mx-auto max-w-md p-4">
+        <header className="flex items-center justify-between border-b pb-3">
+          <h1 className="font-extrabold text-2xl">Admin</h1>
+          <button onClick={logout} className="text-sm underline">
+            Sign out
+          </button>
+        </header>
 
-          {/* Add Tenant */}
-          <section className="mt-6">
-            <h2 className="font-bold text-lg">Add Tenant</h2>
-            <form onSubmit={handleAddTenant} className="space-y-3 mt-2">
-              <input className="w-full border rounded-xl p-3" placeholder="Tenant name"
-                     value={tName} onChange={e=>setTName(e.target.value)} required />
-              <div className="flex gap-3">
-                <input type="number" className="w-32 border rounded-xl p-3" placeholder="Order (0)"
-                       value={tOrder} onChange={e=>setTOrder(parseInt(e.target.value || "0",10))} />
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={tActive} onChange={e=>setTActive(e.target.checked)} />
-                  Active
-                </label>
-              </div>
-              <div>
-                <label className="text-sm block mb-1">Thumbnail (optional)</label>
-                <input type="file" accept="image/*" onChange={e=>setTThumb(e.target.files?.[0] || null)} />
-              </div>
-              <button className="w-full bg-black text-white rounded-xl p-3">Add Tenant</button>
-              {tStatus && <p className="text-xs text-slate-600">{tStatus}</p>}
-            </form>
-          </section>
+        {loadError && (
+          <p className="mt-3 text-sm text-red-600">
+            Failed to load tenants: {loadError}
+          </p>
+        )}
 
-          {/* Add Item */}
-          <section className="mt-10">
-            <h2 className="font-bold text-lg">Add Item</h2>
-            <form onSubmit={handleAddItem} className="space-y-3 mt-2">
-              <select className="w-full border rounded-xl p-3" required
-                      value={iTenantId} onChange={e=>setITenantId(e.target.value)}>
-                <option value="">Pilih tenant…</option>
-                {tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-
-              <input className="w-full border rounded-xl p-3" placeholder="Nama menu (ID)"
-                     value={iNameID} onChange={e=>setINameID(e.target.value)} required />
-              <input className="w-full border rounded-xl p-3" placeholder="Menu name (EN)"
-                     value={iNameEN} onChange={e=>setINameEN(e.target.value)} required />
-              <input className="w-full border rounded-xl p-3" placeholder="Harga (contoh: 25.000)"
-                     value={iPrice} onChange={e=>setIPrice(e.target.value)} required />
-              <textarea className="w-full border rounded-xl p-3" placeholder="Deskripsi (opsional)"
-                        value={iDesc} onChange={e=>setIDesc(e.target.value)} />
-
-              <div>
-                <label className="text-sm block mb-1">Foto (opsional)</label>
-                <input type="file" accept="image/*" onChange={e=>setIImage(e.target.files?.[0] || null)} />
-              </div>
-
+        {/* Add Tenant */}
+        <section className="mt-6">
+          <h2 className="font-bold text-lg">Add Tenant</h2>
+          <form onSubmit={handleAddTenant} className="space-y-3 mt-2">
+            <input
+              className="w-full border rounded-xl p-3"
+              placeholder="Tenant name"
+              value={tName}
+              onChange={(e) => setTName(e.target.value)}
+              required
+            />
+            <div className="flex gap-3">
+              <input
+                type="number"
+                className="w-32 border rounded-xl p-3"
+                placeholder="Order (0)"
+                value={tOrder}
+                onChange={(e) =>
+                  setTOrder(parseInt(e.target.value || "0", 10))
+                }
+              />
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={iActive} onChange={e=>setIActive(e.target.checked)} />
+                <input
+                  type="checkbox"
+                  checked={tActive}
+                  onChange={(e) => setTActive(e.target.checked)}
+                />
                 Active
               </label>
+            </div>
+            <div>
+              <label className="text-sm block mb-1">Thumbnail (optional)</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) =>
+                  setTThumb(e.target.files?.[0] ? e.target.files[0] : null)
+                }
+              />
+            </div>
+            <button className="w-full bg-black text-white rounded-xl p-3">
+              Add Tenant
+            </button>
+            {tStatus && <p className="text-xs text-slate-600">{tStatus}</p>}
+          </form>
+        </section>
 
-              <button className="w-full bg-black text-white rounded-xl p-3">Add Item</button>
-              {iStatus && <p className="text-xs text-slate-600">{iStatus}</p>}
-            </form>
-          </section>
+        {/* Add Item */}
+        <section className="mt-10">
+          <h2 className="font-bold text-lg">Add Item</h2>
+          <form onSubmit={handleAddItem} className="space-y-3 mt-2">
+            <select
+              className="w-full border rounded-xl p-3"
+              required
+              value={iTenantId}
+              onChange={(e) => setITenantId(e.target.value)}
+            >
+              <option value="">Pilih tenant…</option>
+              {tenants.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
 
-          <footer className="h-12" />
-        </div>
-      </main>
-    </AdminGuard>
+            <input
+              className="w-full border rounded-xl p-3"
+              placeholder="Nama menu (ID)"
+              value={iNameID}
+              onChange={(e) => setINameID(e.target.value)}
+              required
+            />
+            <input
+              className="w-full border rounded-xl p-3"
+              placeholder="Menu name (EN)"
+              value={iNameEN}
+              onChange={(e) => setINameEN(e.target.value)}
+              required
+            />
+            <input
+              className="w-full border rounded-xl p-3"
+              placeholder="Harga (contoh: 25.000)"
+              value={iPrice}
+              onChange={(e) => setIPrice(e.target.value)}
+              required
+            />
+            <textarea
+              className="w-full border rounded-xl p-3"
+              placeholder="Deskripsi (opsional)"
+              value={iDesc}
+              onChange={(e) => setIDesc(e.target.value)}
+            />
+
+            <div>
+              <label className="text-sm block mb-1">Foto (opsional)</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) =>
+                  setIImage(e.target.files?.[0] ? e.target.files[0] : null)
+                }
+              />
+            </div>
+
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={iActive}
+                onChange={(e) => setIActive(e.target.checked)}
+              />
+              Active
+            </label>
+
+            <button className="w-full bg-black text-white rounded-xl p-3">
+              Add Item
+            </button>
+            {iStatus && <p className="text-xs text-slate-600">{iStatus}</p>}
+          </form>
+        </section>
+
+        <footer className="h-12" />
+      </div>
+    </main>
   );
 }
