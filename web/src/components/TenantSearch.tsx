@@ -1,5 +1,6 @@
 'use client';
 
+import Link from "next/link";
 import { useMemo, useState } from 'react';
 
 export type Item = {
@@ -13,7 +14,7 @@ export type Item = {
 export type Tenant = {
   id: string;
   name: string;
-  slug: string;
+  slug: string;          // <- ensure this exists
   thumb_url: string | null;
   order_index: number | null;
   items: Item[];
@@ -57,23 +58,24 @@ export default function TenantSearch({ initialTenants }: { initialTenants: Tenan
       {/* list */}
       <div className="mx-auto max-w-md p-4 grid gap-3">
         {filtered.map((t) => (
-          <article key={t.id} className="flex items-center gap-3 border rounded-2xl p-3 shadow-sm">
-            <img
-              src={t.thumb_url ?? 'https://picsum.photos/seed/tenant/96/96'}
-              alt={t.name}
-              className="h-16 w-16 rounded-xl object-cover bg-red-600/10"
-            />
-            <div className="flex-1">
-              <div className="font-bold">{t.name}</div>
-              <div className="text-xs text-slate-500">{t.items.length} menu</div>
-              {/* preview first item & price */}
-              {t.items[0] && (
-                <div className="mt-1 text-xs">
-                  {t.items[0].name_id} • <span className="font-semibold text-red-700">{rp(t.items[0].price)}</span>
-                </div>
-              )}
-            </div>
-          </article>
+          <Link key={t.id} href={`/tenant/${t.slug}`} className="no-underline">
+            <article className="flex items-center gap-3 border rounded-2xl p-3 shadow-sm active:opacity-80">
+              <img
+                src={t.thumb_url ?? 'https://picsum.photos/seed/tenant/96/96'}
+                alt={t.name}
+                className="h-16 w-16 rounded-xl object-cover bg-red-600/10"
+              />
+              <div className="flex-1">
+                <div className="font-bold">{t.name}</div>
+                <div className="text-xs text-slate-500">{t.items.length} menu</div>
+                {t.items[0] && (
+                  <div className="mt-1 text-xs">
+                    {t.items[0].name_id} • <span className="font-semibold text-red-700">{rp(t.items[0].price)}</span>
+                  </div>
+                )}
+              </div>
+            </article>
+          </Link>
         ))}
         {!filtered.length && (
           <div className="text-sm text-slate-500">Tidak ada hasil untuk “{q}”.</div>
