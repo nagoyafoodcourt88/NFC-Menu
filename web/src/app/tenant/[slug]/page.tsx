@@ -4,35 +4,44 @@ import Lightbox from "@/components/Lightbox";
 
 export const revalidate = 60; // ISR
 
-type Row = {
-  id: string;
-  name: string;
-  slug: string;
-  thumb_url: string | null;
-  items: {
+// NOTE: In your Next.js version, `params` is a Promise.
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+
+  type Row = {
     id: string;
-    name_id: string;
-    name_en: string;
-    price: number;
-    image_url: string | null;
-    description: string | null;  // ensure this column exists (text)
-    is_active: boolean;
-  }[] | null;
-};
+    name: string;
+    slug: string;
+    thumb_url: string | null;
+    items:
+      | {
+          id: string;
+          name_id: string;
+          name_en: string;
+          price: number;
+          image_url: string | null;
+          description: string | null;
+          is_active: boolean;
+        }[]
+      | null;
+  };
 
-function rp(n: number) {
-  return 'Rp ' + (n || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-}
-
-export default async function TenantPage({ params }: { params: { slug: string } }) {
-  const { slug } = params;
+  function rp(n: number) {
+    return "Rp " + (n || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  }
 
   const { data, error } = await supabase
     .from("tenants")
-    .select(`
+    .select(
+      `
       id, name, slug, thumb_url,
       items:menu_items ( id, name_id, name_en, price, image_url, description, is_active )
-    `)
+    `,
+    )
     .eq("slug", slug)
     .single<Row>();
 
@@ -40,20 +49,24 @@ export default async function TenantPage({ params }: { params: { slug: string } 
     return (
       <main className="min-h-screen bg-white text-slate-900">
         <div className="mx-auto max-w-md p-4">
-          <Link href="/makanan" className="text-sm text-slate-500 hover:underline">← Kembali</Link>
+          <Link href="/makanan" className="text-sm text-slate-500 hover:underline">
+            ← Kembali
+          </Link>
           <h1 className="font-extrabold text-xl mt-2">Tenant tidak ditemukan</h1>
         </div>
       </main>
     );
   }
 
-  const activeItems = (data.items ?? []).filter(i => i.is_active);
+  const activeItems = (data.items ?? []).filter((i) => i.is_active);
 
   return (
     <main className="min-h-screen bg-white text-slate-900">
       <div className="mx-auto max-w-md p-4">
         <header className="sticky top-0 bg-white py-3 border-b">
-          <Link href="/makanan" className="text-sm text-slate-500 hover:underline">← Kembali</Link>
+          <Link href="/makanan" className="text-sm text-slate-500 hover:underline">
+            ← Kembali
+          </Link>
           <h1 className="font-extrabold text-2xl mt-1">{data.name}</h1>
         </header>
 
