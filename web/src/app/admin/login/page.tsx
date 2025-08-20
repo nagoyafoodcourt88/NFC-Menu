@@ -8,84 +8,50 @@ export default function AdminLoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setErrorMsg(null);
-    setLoading(true);
+    setBusy(true);
+    setMsg(null);
 
-    try {
-      // 1) Sign in on the client
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        setErrorMsg(error.message);
-        setLoading(false);
-        return;
-      }
-
-      // 2) Get the fresh session (client-side)
-      const { data: sessionData } = await supabase.auth.getSession();
-
-      // 3) Sync it to server cookies (so middleware/server can read it)
-      await fetch('/auth/callback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          event: 'SIGNED_IN',
-          session: sessionData.session,
-        }),
-      });
-
-      // 4) Go to /admin and force a refresh so server reads new cookies
-      router.replace('/admin');
-      router.refresh();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Login failed';
-      setErrorMsg(message);
-    } finally {
-      setLoading(false);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      setMsg(error.message);
+      setBusy(false);
+      return;
     }
+
+    // session is stored in local storage by supabase-js
+    router.replace('/admin');
   }
 
   return (
-    <main className="min-h-screen bg-white text-slate-900">
-      <div className="mx-auto max-w-md p-6">
-        <h1 className="text-3xl font-extrabold">Admin Login</h1>
-        <p className="text-slate-600 mt-1">Masuk dengan email & password admin.</p>
-
-        <form onSubmit={onSubmit} className="mt-6 space-y-4">
-          <input
-            type="email"
-            className="w-full rounded-xl border p-3"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-            required
-          />
-          <input
-            type="password"
-            className="w-full rounded-xl border p-3"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            required
-          />
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-xl bg-black p-3 text-white disabled:opacity-60"
-          >
-            {loading ? 'Signing in…' : 'Sign in'}
-          </button>
-
-          {errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
-        </form>
-      </div>
+    <main className="min-h-screen grid place-items-center">
+      <form onSubmit={onSubmit} className="w-full max-w-sm space-y-3 p-6 rounded-xl border">
+        <h1 className="text-xl font-bold">Admin Login</h1>
+        <input
+          className="w-full border rounded-xl p-3"
+          placeholder="Email"
+          type="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          required
+        />
+        <input
+          className="w-full border rounded-xl p-3"
+          placeholder="Password"
+          type="password"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          required
+        />
+        <button disabled={busy} className="w-full bg-black text-white rounded-xl p-3">
+          {busy ? 'Signing in…' : 'Sign in'}
+        </button>
+        {msg && <p className="text-red-600 text-sm">{msg}</p>}
+      </form>
     </main>
   );
 }
