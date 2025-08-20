@@ -1,10 +1,13 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
+import type { Session } from '@supabase/supabase-js';
 
+/* Payload that our login page posts */
 type SupabaseEvent = 'SIGNED_IN' | 'TOKEN_REFRESHED' | 'SIGNED_OUT';
-type CallbackPayload = { event: SupabaseEvent; session: unknown };
+type CallbackPayload = { event: SupabaseEvent; session: Session | null };
 
+/* Cookie option shape used by the SSR adapter */
 type CookieOptions = {
   domain?: string;
   path?: string;
@@ -18,16 +21,18 @@ type CookieOptions = {
 export async function POST(req: Request) {
   const { event, session } = (await req.json()) as CallbackPayload;
 
-  const cookieStore = cookies();
+  const store = cookies();
 
-  // Implement the cookie adapter without `any`
+  // Adapter that matches the API `@supabase/ssr` expects
   const cookieAdapter = {
-    get: (name: string): string | undefined => cookieStore.get(name)?.value,
-    set: (name: string, value: string, options: CookieOptions): void => {
-      cookieStore.set({ name, value, ...options });
+    get(name: string): string | undefined {
+      return store.get(name)?.value;
     },
-    remove: (name: string, options: CookieOptions): void => {
-      cookieStore.set({ name, value: '', ...options, expires: new Date(0) });
+    set(name: string, value: string, options: CookieOptions): void {
+      store.set({ name, value, ...options });
+    },
+    remove(name: string, options: CookieOptions): void {
+      store.set({ name, value: '', ...options, expires: new Date(0) });
     },
   };
 
@@ -37,8 +42,8 @@ export async function POST(req: Request) {
     { cookies: cookieAdapter }
   );
 
-  if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-    await supabase.auth.setSession(session as any); // Supabase accepts the raw session shape
+  if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
+    await supabase.auth.setSession(session);
   } else if (event === 'SIGNED_OUT') {
     await supabase.auth.signOut();
   }
