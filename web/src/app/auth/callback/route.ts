@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import type { Session } from '@supabase/supabase-js';
 
 /* Payload that our login page posts */
@@ -21,7 +21,7 @@ type CookieOptions = {
 export async function POST(req: Request) {
   const { event, session } = (await req.json()) as CallbackPayload;
 
-  const store = cookies();
+  const store = await cookies();
 
   // Adapter that matches the API `@supabase/ssr` expects
   const cookieAdapter = {
