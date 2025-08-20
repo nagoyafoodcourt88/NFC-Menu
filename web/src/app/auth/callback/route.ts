@@ -8,15 +8,6 @@ type SupabaseEvent = 'SIGNED_IN' | 'TOKEN_REFRESHED' | 'SIGNED_OUT';
 type CallbackPayload = { event: SupabaseEvent; session: Session | null };
 
 /* Cookie option shape used by the SSR adapter */
-type CookieOptions = {
-  domain?: string;
-  path?: string;
-  expires?: Date;
-  httpOnly?: boolean;
-  secure?: boolean;
-  sameSite?: 'lax' | 'strict' | 'none';
-  maxAge?: number;
-};
 
 export async function POST(req: Request) {
   const { event, session } = (await req.json()) as CallbackPayload;
