@@ -41,8 +41,9 @@ export default function AdminLoginPage() {
       // 4) Go to /admin and force a refresh so server reads new cookies
       router.replace('/admin');
       router.refresh();
-    } catch (err: any) {
-      setErrorMsg(err?.message ?? 'Login failed');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Login failed';
+      setErrorMsg(message);
     } finally {
       setLoading(false);
     }
